@@ -51,7 +51,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if(players.length > 0) {
         await interaction.reply("Players are online. No restart for you!");
       } else {
-        await rcon.sendCommand("restart");
+        await rcon.sendCommand("quit");
         await interaction.reply("Restart initiated");
       }
       break;
