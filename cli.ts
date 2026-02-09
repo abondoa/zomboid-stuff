@@ -7,32 +7,40 @@ import { commands as registry } from "./commandsRegistry";
 // Build a yargs instance programmatically from registry
 function buildYargs(handler: CommandHandler) {
   const y = yargs();
-  y.exitProcess(false).help(false);
-  registry.forEach((desc: any) => {
+  y.exitProcess(false).help(true).version(false);
+  registry.forEach((desc) => {
     const cmdName = desc.name;
     y.command(
       cmdName,
       desc.description,
       (b: any) => {
-        (desc.options || []).forEach((opt: any) => {
-          b.option(opt.name, { type: opt.type === "number" ? "number" : opt.type === "boolean" ? "boolean" : "string", demandOption: Boolean(opt.required), describe: opt.description });
+        (desc.options || []).forEach((opt) => {
+          b.option(opt.name, {
+            type: opt.type,
+            demandOption: Boolean(opt.required),
+            describe: opt.description,
+          });
         });
         return b;
       },
       async (argv: any) => {
         const args: Record<string, any> = {};
-        (desc.options || []).forEach((opt: any) => {
+        (desc.options || []).forEach((opt) => {
           args[opt.name] = argv[opt.name];
         });
         try {
           const result = await desc.executor({ handler, args, source: "cli" });
           console.log(result);
         } catch (err) {
-          console.error("Error:", err instanceof Error ? err.message : String(err));
+          console.error(
+            "Error:",
+            err instanceof Error ? err.message : String(err),
+          );
         }
       },
     );
   });
+  y.command("exit", "Exit the CLI");
   return y;
 }
 
@@ -53,13 +61,23 @@ export class CLIInterface {
   }
 
   async start(): Promise<void> {
-    console.log("Zombie CLI started. Available commands:");
-    console.log("  zb-restart         - Restart the server");
-    console.log("  zb-players         - List online players");
-    console.log("  zb-mods            - List active mods");
-    console.log("  zb-addmod <id>     - Add a mod by Steam Workshop ID");
-    console.log("  zb-workshopinfo <id> - Look up Steam Workshop ID info");
-    console.log("  exit               - Exit the CLI");
+    if (process.argv.length > 2) {
+      // If command is provided as CLI args, execute and exit
+      const args = process.argv.slice(2);
+      try {
+        await this.yargs.parse(args);
+      } catch (error) {
+        console.error(
+          "Error:",
+          error instanceof Error ? error.message : String(error),
+        );
+        process.exit(1);
+      }
+      await this.rcon.end();
+      process.exit(0);
+    }
+    console.log("Zomboid CLI started. Available commands:");
+    this.yargs.showHelp("log");
     console.log("");
 
     this.prompt();
@@ -86,7 +104,10 @@ export class CLIInterface {
         // Parse via yargs (registered commands will run their handler)
         await this.yargs.parse(tokens);
       } catch (error) {
-        console.error("Error:", error instanceof Error ? error.message : String(error));
+        console.error(
+          "Error:",
+          error instanceof Error ? error.message : String(error),
+        );
       }
 
       this.prompt();

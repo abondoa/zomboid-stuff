@@ -46,21 +46,31 @@ export const commands: CommandDescriptor[] = [
     },
   },
   {
-    name: "zb-addmod",
-    description: "Adds a mod to the server",
+    name: "zb-addworkshopitem",
+    description: "Adds a workshop item to the server",
     options: [
-      { name: "modid", type: "number", required: true, description: "The ID of the mod to add" },
+      {
+        name: "workshopid",
+        type: "number",
+        required: true,
+        description: "The ID of the workshop item to add",
+      },
     ],
     executor: async ({ handler, args }) => {
-      const modId = Number(args.modid);
-      return handler.addmod(modId);
+      const workshopid = Number(args.workshopid);
+      return handler.addworkshopitem(workshopid);
     },
   },
   {
     name: "zb-workshopinfo",
     description: "Look up Steam Workshop mod information",
     options: [
-      { name: "workshopid", type: "string", required: true, description: "The Steam Workshop ID to look up" },
+      {
+        name: "workshopid",
+        type: "number",
+        required: true,
+        description: "The Steam Workshop ID to look up",
+      },
     ],
     executor: async ({ handler, args }) => {
       return handler.workshopinfo(String(args.workshopid));

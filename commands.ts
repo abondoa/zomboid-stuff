@@ -55,35 +55,41 @@ export class CommandHandler {
     );
   }
 
-  async addmod(workshopId: number): Promise<string> {
+  async addworkshopitem(workshopId: number): Promise<string> {
     try {
       const options = await this.rcon.options();
-      
+
       // Get existing workshop items and check for uniqueness
-      const existingWorkshopItems = options.WorkshopItems?.split(";")?.map(x => x.trim()).filter(x => x) ?? [];
-      
+      const existingWorkshopItems =
+        options.WorkshopItems?.split(";")
+          ?.map((x) => x.trim())
+          .filter((x) => x) ?? [];
+
       if (existingWorkshopItems.includes(workshopId.toString())) {
         return `Workshop ID ${workshopId} is already in the server's mod list.`;
       }
-      
+
       // Get the mod name for the new workshop item
       const modName = await this.getModIdFromSteamWorkshop(
         workshopId.toString(),
       );
-      
+
       // Create new workshop items list
-      const newWorkshopItems = [...existingWorkshopItems, workshopId.toString()];
-      
+      const newWorkshopItems = [
+        ...existingWorkshopItems,
+        workshopId.toString(),
+      ];
+
       // Reconstruct the Mods list by getting mod IDs for all workshop items
       const allModIds = await Promise.all(
-        newWorkshopItems.map(id => this.getModIdFromSteamWorkshop(id))
+        newWorkshopItems.map((id) => this.getModIdFromSteamWorkshop(id)),
       );
-      
+
       // Update options with synced lists
       options.WorkshopItems = newWorkshopItems.join(";");
       options.Mods = allModIds.join(";");
       await this.rcon.setOptions(options);
-      
+
       return `Mod ${modName} (ID: ${workshopId}) added to server. Server restart required.`;
     } catch (error) {
       return `Failed to add mod: ${error instanceof Error ? error.message : String(error)}`;

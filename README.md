@@ -1,116 +1,73 @@
-# Zomboid Server CLI/Discord Bot
+# Zomboid Server CLI / Discord Bot
 
-This is a dual-mode application that allows you to interact with a Zomboid Server via RCON either through Discord or via a command-line interface. Both modes support the same commands:
+A dual-mode TypeScript app to interact with a Project Zomboid server over RCON. It can run as a Discord bot (slash commands) or as an interactive CLI; both use the same command handlers.
 
-- `zb-restart` - Restart the server
-- `zb-players` - List online players
-- `zb-mods` - List active mods
-- `zb-addmod <modid>` - Add a mod by Steam Workshop ID
+Supported commands
 
-## Configuration
+- `zb-restart` — Restart the server (won't restart if players are online)
+- `zb-players` — List online players
+- `zb-mods` — List active mods (shows mod id and workshop item)
+- `zb-addworkshopitem --workshopid <id>` — Add a Steam Workshop item to the server (updates `WorkshopItems` and `Mods`)
+- `zb-workshopinfo --workshopid <id>` — Lookup Steam Workshop information for an ID
 
-Create a `config.json` file with the RCON server credentials:
+Configuration
+
+Create a `config.json` (placed next to `index.ts`) containing the RCON and Discord settings used at startup:
 
 ```json
 {
-    "host": "<Hostname or IP of the RCON server>",
-    "port": <Port for the RCON server>,
-    "password": "<Password for the RCON server>",
-    "token": "<Token for the Discord bot (Discord mode only)>",
-    "clientId": "<Client ID for the Discord bot (Discord mode only)>"
+  "host": "<RCON host or IP>",
+  "port": 27015,
+  "password": "<RCON password>",
+  "token": "<Discord bot token - for Discord mode only>",
+  "clientId": "<Discord client ID - for Discord mode only>"
 }
 ```
 
-## Running
+Running
 
-### Build
+Build
 
 ```bash
 npm run build
 ```
 
-### Discord Mode (Default)
-
-This mode runs the application as a Discord bot with slash commands.
-
-**Development:**
+Development (interprets TypeScript at runtime)
 
 ```bash
-npm run dev:discord
+npm install
+npm run dev         # run in default mode (discord by default)
+npm run dev:discord # force discord mode
+npm run dev:cli     # force CLI mode
 ```
 
-**Production:**
+Production (compiled JS in `dist`)
 
 ```bash
-npm run start:discord
+npm run start:discord  # run as Discord bot
+npm run start:cli      # run CLI (non-interactive args supported)
 ```
 
-**Docker:**
+Scripts and MODE
 
-```bash
-docker-compose up
-```
+- The app reads `process.env.MODE`; valid values are `discord` (default) or `cli`.
+- `start:discord` and `start:cli` set `MODE` for you when running the compiled `dist/index.js`.
 
-### CLI Mode
+Docker
 
-This mode runs an interactive command-line interface where you can type commands directly.
-
-**Development:**
-
-```bash
-npm run dev:cli
-```
-
-**Production:**
-
-```bash
-npm run start:cli
-```
-
-**Docker:**
+Use `docker-compose up` to run the container. To run the CLI variant set `MODE=cli` in the compose environment or when invoking Docker:
 
 ```bash
 MODE=cli docker-compose up
 ```
 
-Or in docker-compose.yml:
+Discord setup
 
-```yaml
-environment:
-  - MODE=cli
-```
+1. Create a Discord bot and obtain its token and client ID (see discord.js guide).
+2. Add `token` and `clientId` to `config.json`.
+3. The bot will register slash commands on startup.
 
-## Discord Setup
+Notes for contributors
 
-For Discord mode, you need to set up a Discord bot:
-
-1. Follow the guide from https://discordjs.guide/preparations/setting-up-a-bot-application.html#creating-your-bot
-2. Get the bot token and client ID
-3. Add them to the `config.json` file
-4. The bot will automatically register slash commands on startup
-
-## Development
-
-**Install dependencies:**
-
-```bash
-npm install
-```
-
-**Run in development (Discord mode by default):**
-
-```bash
-npm run dev
-```
-
-**Run in CLI mode:**
-
-```bash
-npm run dev:cli
-```
-
-**Watch and compile TypeScript:**
-
-```bash
-npm run build
-```
+- CLI commands are implemented in `commandsRegistry.ts` and delegate to `CommandHandler` in `commands.ts`.
+- The CLI uses `yargs` to parse commands; boolean/number/string options map to each command's `options` descriptor.
