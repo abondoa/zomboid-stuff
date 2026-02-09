@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp config.json dist/",
     "start": "node dist/index.js",
     "start:discord": "MODE=discord node dist/index.js",
     "start:cli": "MODE=cli node dist/index.js",
