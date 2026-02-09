@@ -55,15 +55,36 @@ export class CommandHandler {
     );
   }
 
-  async addmod(modId: number): Promise<string> {
+  async addmod(workshopId: number): Promise<string> {
     try {
-      const modName = await this.getModIdFromSteamWorkshop(modId.toString());
       const options = await this.rcon.options();
-      options.WorkshopItems = options.WorkshopItems + ";" + modId;
-      options.Mods = options.Mods + ";" + modName;
+      
+      // Get existing workshop items and check for uniqueness
+      const existingWorkshopItems = options.WorkshopItems?.split(";")?.map(x => x.trim()).filter(x => x) ?? [];
+      
+      if (existingWorkshopItems.includes(workshopId.toString())) {
+        return `Workshop ID ${workshopId} is already in the server's mod list.`;
+      }
+      
+      // Get the mod name for the new workshop item
+      const modName = await this.getModIdFromSteamWorkshop(
+        workshopId.toString(),
+      );
+      
+      // Create new workshop items list
+      const newWorkshopItems = [...existingWorkshopItems, workshopId.toString()];
+      
+      // Reconstruct the Mods list by getting mod IDs for all workshop items
+      const allModIds = await Promise.all(
+        newWorkshopItems.map(id => this.getModIdFromSteamWorkshop(id))
+      );
+      
+      // Update options with synced lists
+      options.WorkshopItems = newWorkshopItems.join(";");
+      options.Mods = allModIds.join(";");
       await this.rcon.setOptions(options);
-      // You would implement actual mod addition logic here
-      return `Mod ${modName} (ID: ${modId}) added to server. Server restart required.`;
+      
+      return `Mod ${modName} (ID: ${workshopId}) added to server. Server restart required.`;
     } catch (error) {
       return `Failed to add mod: ${error instanceof Error ? error.message : String(error)}`;
     }
@@ -97,6 +118,15 @@ export class CommandHandler {
         data.response?.publishedfiledetails?.length > 0
       ) {
         const fileDetails = data.response.publishedfiledetails[0];
+
+        // Verify that this workshop item is for Project Zomboid (app ID 108600)
+        const ZOMBOID_APP_ID = 108600;
+        if (fileDetails.creator_app_id !== ZOMBOID_APP_ID) {
+          throw new Error(
+            `Workshop item ${workshopId} is not for Project Zomboid (app ID: ${fileDetails.creator_app_id})`,
+          );
+        }
+
         const description = fileDetails.description || "";
 
         // Look for "Mod ID: <modid>" in the description

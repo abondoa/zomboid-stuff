@@ -3,10 +3,18 @@ import { RconClient } from "./rcon";
 
 const { host, port, password } = require("./config.json");
 
-interface TestCase {
+interface SuccessTestCase {
   workshopId: string;
   expectedModId: string;
+  shouldThrow?: false;
 }
+
+interface ErrorTestCase {
+  workshopId: string;
+  shouldThrow: true;
+}
+
+type TestCase = SuccessTestCase | ErrorTestCase;
 
 // Add test cases here - simple array of { workshopId, expectedModId }
 const testCases: TestCase[] = [
@@ -21,11 +29,11 @@ const testCases: TestCase[] = [
   { workshopId: "2950902979", expectedModId: "EQUIPMENT_UI" },
   { workshopId: "2956146279", expectedModId: "RainCleansBlood" },
   { workshopId: "3370707195", expectedModId: "organizedCategories_core" },
-  // Add more test cases below:
-  // {
-  //   workshopId: "123456789",
-  //   expectedModId: "someModName",
-  // },
+  // Test case for non-Project Zomboid workshop item (should throw)
+  {
+    workshopId: "3661502446",
+    shouldThrow: true,
+  },
 ];
 
 async function runTests() {
@@ -38,25 +46,46 @@ async function runTests() {
   let failed = 0;
 
   for (const testCase of testCases) {
+    const shouldThrow = (testCase as ErrorTestCase).shouldThrow === true;
     try {
       const result = await (commandHandler as any).getModIdFromSteamWorkshop(
         testCase.workshopId,
       );
-      if (result === testCase.expectedModId) {
-        console.log(`✓ PASS: Workshop ID ${testCase.workshopId} -> ${result}`);
-        passed++;
-      } else {
-        console.log(`✗ FAIL: Workshop ID ${testCase.workshopId}`);
-        console.log(`  Expected: ${testCase.expectedModId}`);
-        console.log(`  Got:      ${result}`);
+      if (shouldThrow) {
+        console.log(
+          `✗ FAIL: Workshop ID ${testCase.workshopId} should throw but returned: ${result}`,
+        );
         failed++;
+      } else {
+        const expectedModId = (testCase as SuccessTestCase).expectedModId;
+        if (result === expectedModId) {
+          console.log(
+            `✓ PASS: Workshop ID ${testCase.workshopId} -> ${result}`,
+          );
+          passed++;
+        } else {
+          console.log(`✗ FAIL: Workshop ID ${testCase.workshopId}`);
+          console.log(`  Expected: ${expectedModId}`);
+          console.log(`  Got:      ${result}`);
+          failed++;
+        }
       }
     } catch (error) {
-      console.log(`✗ ERROR: Workshop ID ${testCase.workshopId}`);
-      console.log(
-        `  ${error instanceof Error ? error.message : String(error)}`,
-      );
-      failed++;
+      if (shouldThrow) {
+        console.log(
+          `✓ PASS: Workshop ID ${testCase.workshopId} threw as expected`,
+        );
+        console.log(
+          `  Error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        passed++;
+      } else {
+        console.log(`✗ ERROR: Workshop ID ${testCase.workshopId}`);
+        console.log(
+          `  ${error instanceof Error ? error.message : String(error)}`,
+        );
+        failed++;
+      }
     }
   }
 

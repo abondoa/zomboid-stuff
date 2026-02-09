@@ -17,7 +17,8 @@
   "license": "ISC",
   "dependencies": {
     "discord.js": "^14.4.0",
-    "rcon-client": "^4.2.4"
+    "rcon-client": "^4.2.4",
+    "yargs": "^17.7.2"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",
