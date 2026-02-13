@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch dev:cli (npm)",
+      "type": "pwa-node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:cli"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Launch index.ts (ts-node, inspector)",
+      "type": "pwa-node",
+      "request": "launch",
+      "runtimeExecutable": "node",
+      "args": ["--inspect-brk=9229", "-r", "ts-node/register", "index.ts"],
+      "program": "${workspaceFolder}/index.ts",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "env": {
+        "MODE": "cli"
+      },
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

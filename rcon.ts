@@ -1,5 +1,7 @@
 import { Rcon } from "rcon-client";
 
+export const OPTION_CACHE_ENABLED = false;
+
 export interface ServerOptions {
   AdminSafehouse?: string;
   AllowCoop?: string;
@@ -138,18 +140,98 @@ export class RconClient {
   private rcon: Promise<Rcon>;
   private running: boolean;
   private optionsCache: ServerOptions | undefined;
+  private reconnectAttempts: number = 0;
+  private isReconnecting: boolean = false;
+  private maxReconnectAttempts: number = 5;
+  private reconnectDelayMs: number = 100;
+  private intentionallyClosed: boolean = false;
+  private password: string;
+  private host: string;
+  private port: number;
+
   constructor(host: string, port: number, password: string) {
+    this.host = host;
+    this.port = port;
+    this.password = password;
     this.rcon = Rcon.connect({
       host,
       port,
       password,
     });
     this.running = true;
+    this.setupConnectionListener();
+  }
+
+  private setupConnectionListener(): void {
+    this.rcon
+      .then((client) => {
+        client.on("end", () => {
+          if (!this.intentionallyClosed) {
+            this.running = false;
+            console.log("RCON connection ended unexpectedly");
+          }
+        });
+      })
+      .catch(() => {
+        // Connection failed initially, will be handled in sendCommand
+      });
+  }
+
+  private async reconnect(): Promise<void> {
+    if (this.isReconnecting || this.intentionallyClosed) {
+      return;
+    }
+
+    this.isReconnecting = true;
+
+    try {
+      while (this.reconnectAttempts < this.maxReconnectAttempts) {
+        try {
+          const delay =
+            Math.pow(2, this.reconnectAttempts) * this.reconnectDelayMs;
+          console.log(
+            `RCON reconnection attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts}, waiting ${delay}ms`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+
+          // Create new connection
+          this.rcon = Rcon.connect({
+            host: this.host,
+            port: this.port,
+            password: this.password,
+          });
+
+          await this.rcon; // Wait for connection to establish
+          this.running = true;
+          this.reconnectAttempts = 0;
+          this.optionsCache = undefined; // Clear cache on successful reconnect
+          console.log("RCON successfully reconnected");
+          this.setupConnectionListener();
+          return;
+        } catch (err) {
+          this.reconnectAttempts++;
+          console.error(
+            `RCON reconnection attempt ${this.reconnectAttempts} failed:`,
+            err,
+          );
+        }
+      }
+
+      throw new Error(
+        `Failed to reconnect after ${this.maxReconnectAttempts} attempts`,
+      );
+    } finally {
+      this.isReconnecting = false;
+    }
   }
 
   private async sendCommand(command: string): Promise<string> {
-    if (!this.running)
-      throw new Error("Unable to send commands for a closed connection");
+    if (!this.running) {
+      await this.reconnect();
+      if (!this.running) {
+        throw new Error("Unable to send commands - reconnection failed");
+      }
+    }
     return (await this.rcon).send(command);
   }
 
@@ -163,11 +245,11 @@ export class RconClient {
   }
 
   public async options(): Promise<ServerOptions> {
-    if (!this.optionsCache) {
-      this.optionsCache = (await this.sendCommand("showoptions"))
+    const parseOptions = (raw: string): ServerOptions =>
+      raw
         .split("\n")
         .filter((x) => x.startsWith("* "))
-        ?.map((x) => {
+        .map((x) => {
           const splitIndex = x.indexOf("=");
           return {
             name: x.substring(2, splitIndex),
@@ -175,26 +257,39 @@ export class RconClient {
           };
         })
         .reduce((acc, option) => ({ ...acc, [option.name]: option.value }), {});
+
+    if (!OPTION_CACHE_ENABLED) {
+      return parseOptions(await this.sendCommand("showoptions"));
     }
+
+    if (!this.optionsCache) {
+      this.optionsCache = parseOptions(await this.sendCommand("showoptions"));
+    }
+
     return { ...this.optionsCache };
   }
 
   public async setOptions(options: ServerOptions): Promise<void> {
+    const current = await this.options();
     for (const [key, value] of Object.entries(options)) {
-      if (value != this.optionsCache?.[key as keyof ServerOptions]) {
-        await this.sendCommand(`setoption ${key}=${value}`);
+      if (value != current?.[key as keyof ServerOptions]) {
+        await this.sendCommand(`changeoption ${key} ${value}`);
         console.log(`Setting option ${key} to ${value}`);
-        this.optionsCache![key as keyof ServerOptions] = value;
+        if (OPTION_CACHE_ENABLED) {
+          this.optionsCache = this.optionsCache || {};
+          this.optionsCache[key as keyof ServerOptions] = value;
+        }
       }
     }
   }
 
   public async quit(): Promise<void> {
     await this.sendCommand("quit");
-    await this.end();
+    (await this.rcon).end();
   }
 
   public async end(): Promise<void> {
+    this.intentionallyClosed = true;
     (await this.rcon).end();
     this.running = false;
   }
